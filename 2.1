@@ -1,0 +1,77 @@
+#include <SPI.h>
+#include <WiFiNINA.h>
+#include <DHT.h>
+#include <ThingSpeak.h>
+
+// WiFi credentials
+char ssid[] = "123456";        // your network SSID (name)
+char pass[] = "83567289";                // your network password
+
+// ThingSpeak credentials
+unsigned long myChannelNumber = 2507094;
+const char * myWriteAPIKey = "2AERBMQIB5Y6AHD4";
+
+// DHT sensor setup
+#define DHTPIN 2          // Pin where the DHT11 is connected
+#define DHTTYPE DHT11     // DHT 11
+DHT dht(DHTPIN, DHTTYPE);
+
+WiFiClient client;
+
+void setup() {
+  Serial.begin(9600);      // Initialize serial
+  dht.begin();
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConnected to WiFi.");
+  
+  ThingSpeak.begin(client);  // Initialize ThingSpeak
+}
+
+void loop() {
+  // Reconnect to WiFi if connection is lost
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.print("Attempting to reconnect to SSID: ");
+    Serial.println(ssid);
+    WiFi.begin(ssid, pass);
+    while (WiFi.status() != WL_CONNECTED) {
+      Serial.print(".");
+      delay(5000);
+    }
+    Serial.println("\nReconnected to WiFi.");
+  }
+
+  // Read humidity and temperature values
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  Serial.print("Humidity: ");
+  Serial.print(humidity);
+  Serial.print("%\t");
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.println("°C ");
+
+  // Set the fields with the values
+  ThingSpeak.setField(1, temperature);
+  ThingSpeak.setField(2, humidity);
+
+  // Write to the ThingSpeak channel
+  int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+  if (x == 200) {
+    Serial.println("Channel update successful.");
+  } else {
+    Serial.println("Problem updating channel. HTTP error code " + String(x));
+  }
+
+  delay(20000); // Wait 20 seconds to update the channel again
+}
